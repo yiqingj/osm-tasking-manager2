@@ -91,6 +91,8 @@ def main(global_config, **settings):
                      '/project/{project:\d+}/invalidate_all')
     config.add_route('project_message_all',
                      '/project/{project:\d+}/message_all')
+    config.add_route('project_comment_all', '/project/{project:\d+}/comments')
+
     config.add_route('task_random', '/project/{project:\d+}/random', xhr=True)
     config.add_route('task_empty', '/project/{project:\d+}/task/empty',
                      xhr=True)
@@ -146,6 +148,7 @@ def main(global_config, **settings):
 
     config.add_translation_dirs('osmtm:locale')
     config.set_locale_negotiator('osmtm.i18n.custom_locale_negotiator')
+    config.add_renderer('csv','osmtm.renderers.CSVRenderer')
 
     translation_manager.options.update({
         'locales': settings['available_languages'].split(),

@@ -12,3 +12,5 @@
   <tfoot>
   </tfoot>
 </table>
+
+<a href="${project.id}/comments">Export Comments in CSV</a>

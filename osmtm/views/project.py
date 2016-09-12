@@ -1,22 +1,28 @@
-from pyramid.view import view_config
-from pyramid.httpexceptions import HTTPFound
-from pyramid.url import route_path
-from pyramid.response import Response
-from ..models import (
-    DBSession,
-    Project,
-    Area,
-    PriorityArea,
-    User,
-    Task,
-    TaskState,
-    TaskLock,
-    License,
-)
-from pyramid.security import authenticated_userid
+import datetime
+import itertools
+import logging
 
+from geoalchemy2 import (
+    shape,
+)
+from geoalchemy2.functions import (
+    ST_Area,
+    ST_Transform,
+)
+from geojson import (
+    FeatureCollection,
+    Feature,
+)
+from pyramid.httpexceptions import HTTPFound
 from pyramid.i18n import (
     get_locale_name,
+)
+from pyramid.response import Response
+from pyramid.security import authenticated_userid
+from pyramid.url import route_path
+from pyramid.view import view_config
+from shapely.geometry import (
+    MultiPolygon
 )
 from sqlalchemy.orm import (
     joinedload,
@@ -27,38 +33,26 @@ from sqlalchemy.sql.expression import (
     func,
 )
 
-from geoalchemy2 import (
-    shape,
-)
-
-from shapely.geometry import (
-    MultiPolygon
-)
-
-from geoalchemy2.functions import (
-    ST_Area,
-    ST_Transform,
-)
-
-from geojson import (
-    FeatureCollection,
-    Feature,
-)
-
-import datetime
-import itertools
-
+from user import username_to_userid
 from .task import get_locked_task, add_comment, send_message
-
+from ..models import (
+    DBSession,
+    Project,
+    Area,
+    PriorityArea,
+    User,
+    Task,
+    TaskComment,
+    TaskState,
+    TaskLock,
+    License,
+)
 from ..utils import (
     parse_geojson,
     convert_to_multipolygon,
     get_tiles_in_geom,
 )
 
-from user import username_to_userid
-
-import logging
 log = logging.getLogger(__name__)
 
 
@@ -335,6 +329,28 @@ def project_stats(request):
     project = DBSession.query(Project).get(id)
 
     return get_stats(project)
+
+
+@view_config(route_name='project_comment_all', renderer='csv')
+def project_comments(request):
+    id = request.matchdict['project']
+    project = DBSession.query(Project).get(id)
+    tasks = DBSession.query(Task) \
+        .filter(Task.project_id == project.id) \
+        .options(joinedload(Task.cur_state)) \
+        .options(joinedload(Task.cur_lock))
+
+    # override attributes of response
+    filename = '{}.csv'.format(project.name)
+    request.response.content_disposition = 'attachment;filename=' + filename
+
+    header = ['Task', 'Author', 'Comment', 'Grid']
+    rows = [[t.id, t.comments[0].author.username if t.comments else '',
+             '\n'.join([c.comment for c in t.comments]), shape.to_shape(t.geometry).wkt] for t in tasks]
+    return {
+        'header': header,
+        'rows': rows
+    }
 
 
 @view_config(route_name="project_check_for_update", renderer='json')
@@ -691,6 +707,12 @@ def get_stats(project):
         stats.append([task.date.isoformat(), done, validated])
 
     return {"total": total, "stats": stats}
+
+
+def get_comments(project):
+    comments = DBSession.query(TaskComment).filter(TaskComment.project_id == project.id) \
+        .order_by(TaskComment.date).all()
+    return comments
 
 
 def check_project_expiration():
