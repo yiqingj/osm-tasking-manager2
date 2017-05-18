@@ -345,7 +345,7 @@ def project_comments(request):
     request.response.content_disposition = 'attachment;filename=' + filename
 
     header = ['Time', 'Task', 'Author', 'Comment', 'Grid']
-    rows = [[c.date, t.id, c.author.username, c.comment, shape.to_shape(t.geometry).wkt] for t in tasks for c in
+    rows = [[c.date, t.id, c.author.username, c.comment.encode('utf-8'), shape.to_shape(t.geometry).wkt] for t in tasks for c in
             t.comments]
     # rows = [[t.date, t.id, t.comments[0].author.username if t.comments else '',
     #          '\n\n'.join([c.comment for c in sorted(t.comments, key=lambda k: k.date)]), shape.to_shape(t.geometry).wkt]
